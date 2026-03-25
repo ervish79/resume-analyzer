@@ -44,8 +44,4 @@ streamlit run app.py
 
 ---
 
-## Author
 
-**HEMANT KUMAR**  
-- GitHub: https://github.com/ervish79 
-- Email: hemantkkumar7900@gmail.com 
