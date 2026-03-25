@@ -10,6 +10,17 @@ from io import BytesIO
 # =========================
 st.set_page_config(page_title="AI Resume Analyzer", layout="wide")
 
+
+st.markdown("""
+<style>
+.stMetric {
+    background-color: #1e293b;
+    padding: 15px;
+    border-radius: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # =========================
 # ADMIN CREDENTIALS
 # =========================
@@ -91,6 +102,16 @@ if st.session_state.is_admin:
 
     # Admin stats
     total_resumes, avg_score = get_admin_stats()
+    # Score distribution graph
+    cursor = conn.cursor()
+    cursor.execute("SELECT score FROM history")
+    scores = [row[0] for row in cursor.fetchall()]
+
+    if scores:
+        fig, ax = plt.subplots()
+        ax.hist(scores)
+        ax.set_title("All Users Score Distribution")
+        st.pyplot(fig)
 
     st.metric("Total Resumes Analyzed", total_resumes)
     st.metric("Average Score", round(avg_score, 2) if avg_score else 0)
@@ -167,6 +188,18 @@ if uploaded_file:
     st.subheader("Missing Skills")
     st.error(", ".join(missing) if missing else "None")
 
+    # Resume improvement tips
+    st.markdown("### Resume Tips")
+
+    if "projects" not in resume_text:
+        st.write("Add projects section to improve impact")
+
+    if "experience" not in resume_text:
+        st.write("Include work experience")
+
+    if len(resume_text.split()) < 300:
+        st.write("Increase resume content length")
+
     # Suggestions
     st.markdown("### Suggestions to Improve Resume")
     if missing:
@@ -233,6 +266,34 @@ if uploaded_files:
     ax.set_title("Resume Ranking")
     ax.invert_yaxis()
     st.pyplot(fig)
+
+
+
+# =========================
+# USER HISTORY DASHBOARD
+# =========================
+st.markdown("---")
+st.header("Your Analysis History")
+
+history = get_history(st.session_state.username)
+
+if history:
+    for role, score, found, missing in history:
+        st.write(f"Role: {role} | Score: {score}")
+
+    # Score graph
+    scores = [row[1] for row in history]
+    attempts = list(range(1, len(scores)+1))
+
+    fig, ax = plt.subplots()
+    ax.plot(attempts, scores)
+    ax.set_xlabel("Attempts")
+    ax.set_ylabel("Score")
+    ax.set_title("Score Improvement")
+    st.pyplot(fig)
+
+else:
+    st.write("No history yet")
 
 # =========================
 # JOB DESCRIPTION MATCHING
