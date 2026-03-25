@@ -1,16 +1,28 @@
 import streamlit as st
+import matplotlib.pyplot as plt
+from io import BytesIO
+
+# Import custom modules
 from utils import extract_text, calculate_score, skill_analysis, generate_pdf_report
 from roles import roles
-import matplotlib.pyplot as plt
-from database import add_user, get_user, save_result, get_history, get_all_users, get_admin_stats
-from io import BytesIO
+from database import (
+    add_user,
+    get_user,
+    save_result,
+    get_history,
+    get_all_users,
+    get_admin_stats,
+    conn
+)
 
 # =========================
 # APP CONFIGURATION
 # =========================
 st.set_page_config(page_title="AI Resume Analyzer", layout="wide")
 
-
+# =========================
+# CUSTOM UI STYLING
+# =========================
 st.markdown("""
 <style>
 .stMetric {
@@ -28,7 +40,7 @@ ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
 
 # =========================
-# SESSION STATE INITIALIZATION
+# SESSION STATE INIT
 # =========================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -38,7 +50,7 @@ if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
 # =========================
-# AUTHENTICATION PAGE
+# AUTH PAGE (LOGIN / SIGNUP)
 # =========================
 def auth_page():
     st.markdown("## Login / Signup")
@@ -58,7 +70,7 @@ def auth_page():
                 st.session_state.is_admin = True
                 st.rerun()
 
-            # Normal user login
+            # User login
             elif get_user(username, password):
                 st.session_state.logged_in = True
                 st.session_state.username = username
@@ -82,7 +94,7 @@ def auth_page():
                 st.error("Please fill all fields")
 
 # =========================
-# BLOCK ACCESS IF NOT LOGGED IN
+# BLOCK IF NOT LOGGED IN
 # =========================
 if not st.session_state.logged_in:
     auth_page()
@@ -94,14 +106,18 @@ if not st.session_state.logged_in:
 if st.session_state.is_admin:
     st.title("Admin Dashboard")
 
-    # Show users
+    # Show all users
     st.subheader("Registered Users")
     users_list = get_all_users()
     for user in users_list:
         st.write(user[0])
 
-    # Admin stats
+    # Get admin stats
     total_resumes, avg_score = get_admin_stats()
+
+    st.metric("Total Resumes Analyzed", total_resumes)
+    st.metric("Average Score", round(avg_score, 2) if avg_score else 0)
+
     # Score distribution graph
     cursor = conn.cursor()
     cursor.execute("SELECT score FROM history")
@@ -110,11 +126,8 @@ if st.session_state.is_admin:
     if scores:
         fig, ax = plt.subplots()
         ax.hist(scores)
-        ax.set_title("All Users Score Distribution")
+        ax.set_title("Score Distribution")
         st.pyplot(fig)
-
-    st.metric("Total Resumes Analyzed", total_resumes)
-    st.metric("Average Score", round(avg_score, 2) if avg_score else 0)
 
     # Logout
     if st.button("Logout"):
@@ -140,7 +153,6 @@ with col2:
 
 st.write(f"Welcome, {st.session_state.username}")
 
-# App description
 st.markdown("""
 AI-powered Resume Screening System  
 Upload your resume and get instant feedback, ranking, and job match score
@@ -161,15 +173,15 @@ if uploaded_file:
     resume_text = extract_text(uploaded_file)
     skills = roles[role]
 
-    # Debug view
+    # Optional debug
     if st.checkbox("Show Extracted Text"):
         st.write(resume_text[:1000])
 
-    # Score calculation
+    # Score + analysis
     score = calculate_score(resume_text, skills)
     found, missing = skill_analysis(resume_text, skills)
 
-    # Save result (only if valid)
+    # Save to database
     if score > 0:
         save_result(st.session_state.username, role, score, found, missing)
 
@@ -188,32 +200,19 @@ if uploaded_file:
     st.subheader("Missing Skills")
     st.error(", ".join(missing) if missing else "None")
 
-    # Resume improvement tips
+    # Resume tips
     st.markdown("### Resume Tips")
-
     if "projects" not in resume_text:
-        st.write("Add projects section to improve impact")
-
+        st.write("Add projects section")
     if "experience" not in resume_text:
-        st.write("Include work experience")
-
+        st.write("Include experience")
     if len(resume_text.split()) < 300:
-        st.write("Increase resume content length")
+        st.write("Increase content length")
 
     # Suggestions
-    st.markdown("### Suggestions to Improve Resume")
-    if missing:
-        for skill in missing:
-            st.write(f"Add skill: {skill}")
-    else:
-        st.success("Your resume is well optimized")
-
-    # Skill breakdown
-    st.markdown("### Skill Match Breakdown")
-    for skill in skills:
-        pct = 100 if skill in found else 0
-        st.progress(pct)
-        st.write(f"{skill} ({'Matched' if skill in found else 'Missing'})")
+    st.markdown("### Suggestions")
+    for skill in missing:
+        st.write(f"Add skill: {skill}")
 
     # Pie chart
     fig, ax = plt.subplots()
@@ -224,7 +223,7 @@ if uploaded_file:
     if st.button("Download Report"):
         pdf_buffer = BytesIO()
         generate_pdf_report(pdf_buffer, score, found, missing)
-        st.download_button("Download PDF", pdf_buffer, file_name="report.pdf", mime="application/pdf")
+        st.download_button("Download PDF", pdf_buffer, file_name="report.pdf")
 
 # =========================
 # MULTIPLE RESUME RANKING
@@ -244,10 +243,6 @@ if uploaded_files:
     for file in uploaded_files:
         text = extract_text(file)
         score = calculate_score(text, roles[role])
-        found, missing = skill_analysis(text, roles[role])
-
-        if score > 0:
-            save_result(st.session_state.username, role, score, found, missing)
 
         results.append((file.name, score))
 
@@ -256,44 +251,31 @@ if uploaded_files:
     for i, (name, score) in enumerate(results, start=1):
         st.write(f"{i}. {name} -> {score}/100")
 
-    # Bar chart
-    names = [r[0] for r in results]
-    scores = [r[1] for r in results]
-
-    fig, ax = plt.subplots()
-    ax.barh(names, scores)
-    ax.set_xlabel("Score")
-    ax.set_title("Resume Ranking")
-    ax.invert_yaxis()
-    st.pyplot(fig)
-
-
-
 # =========================
-# USER HISTORY DASHBOARD
+# USER HISTORY
 # =========================
 st.markdown("---")
-st.header("Your Analysis History")
+st.header("Your History")
 
 history = get_history(st.session_state.username)
 
 if history:
-    for role, score, found, missing in history:
-        st.write(f"Role: {role} | Score: {score}")
+    scores = []
 
-    # Score graph
-    scores = [row[1] for row in history]
-    attempts = list(range(1, len(scores)+1))
+    for role_name, score, _, _ in history:
+        st.write(f"{role_name} → {score}")
+        scores.append(score)
 
+    # Graph
     fig, ax = plt.subplots()
-    ax.plot(attempts, scores)
+    ax.plot(range(1, len(scores)+1), scores)
+    ax.set_title("Score Improvement")
     ax.set_xlabel("Attempts")
     ax.set_ylabel("Score")
-    ax.set_title("Score Improvement")
     st.pyplot(fig)
 
 else:
-    st.write("No history yet")
+    st.write("No history available")
 
 # =========================
 # JOB DESCRIPTION MATCHING
