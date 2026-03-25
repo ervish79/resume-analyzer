@@ -34,6 +34,10 @@ An AI-powered Resume Screening System that analyzes resumes, matches skills with
 
 ---
 
+## Author 
+  Name-  Hemant kumar
+  Email- hemantkkumar7900@gmail.com
+
 ## Installation
 
 ```bash
@@ -41,6 +45,8 @@ git clone https://github.com/ervish79/resume-analyzer.git
 cd resume-analyzer
 pip install -r requirements.txt
 streamlit run app.py
+
+
 
 
 
