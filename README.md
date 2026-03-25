@@ -35,8 +35,8 @@ An AI-powered Resume Screening System that analyzes resumes, matches skills with
 ---
 
 ## Author 
-  Name-  Hemant kumar
-  Email- hemantkkumar7900@gmail.com
+  -Name-  Hemant kumar
+  -Email- hemantkkumar7900@gmail.com
 
 ## Installation
 
