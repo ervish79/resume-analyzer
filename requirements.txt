@@ -6,3 +6,4 @@ Pillow
 reportlab
 bcrypt
 numpy
+matplotlib
